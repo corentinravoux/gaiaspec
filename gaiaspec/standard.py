@@ -15,13 +15,22 @@ def chunks_data_split(lst, n):
 
 
 def create_standard_catalog(
-    query,
+    query=None,
+    source_id_list=None,
     dl_threshold=5000,
 ):
-
-    job = Gaia.launch_job_async(query)
-    gaia_source_table = job.get_results()
-
+    if (query is None)&(source_id_list is None):
+        raise ValueError("Please give either a query or a source_id_list")
+    if (query is not None)&(source_id_list is not None):
+        gaia_source_table = []
+        for source_id in source_id_list:
+            query_id = query + f"  WHERE source_id = {source_id}"
+            job = Gaia.launch_job_async(query_id)
+            gaia_source_table.append(job.get_results())
+        gaia_source_table = vstack(gaia_source_table)
+    else:
+        job = Gaia.launch_job_async(query)
+        gaia_source_table = job.get_results()
     ids = gaia_source_table["SOURCE_ID"]
     ids_chunks = list(chunks_data_split(ids, dl_threshold))
     datalink_all = []
@@ -29,7 +38,6 @@ def create_standard_catalog(
     retrieval_type = "XP_CONTINUOUS"
     data_structure = "COMBINED"
     data_release = "Gaia DR3"
-    dl_key = f"{retrieval_type}_{data_structure}.csv"
 
     ii = 0
     for chunk in ids_chunks:
@@ -50,7 +58,7 @@ def create_standard_catalog(
     product_list = [
         item.group_by("source_id")
         for sublist in datalink_all
-        for item in sublist[dl_key]
+        for item in sublist[list(datalink.keys())[0]]
     ]
     product_list_groups = [group for item in product_list for group in item.groups]
 
