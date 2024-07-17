@@ -30,6 +30,10 @@ def get_gaia_spectra():
 
 
 def is_gaia(label):
+    try:
+        label = int(label)
+    except:
+        return False
     gaia_sources = get_gaia_sources()
     return label in np.array(gaia_sources["SOURCE_ID"])
 
@@ -40,12 +44,18 @@ class Gaia:
         self,
         label,
     ):
+        try:
+            label = int(label)
+        except:
+            raise ValueError(
+                "The format of the given label is not appropriate for Gaia."
+            )
         self.label = label
 
         gaia_sources = get_gaia_sources()
         mask = np.array(gaia_sources["SOURCE_ID"]) == self.label
         if len(mask[mask]) < 1:
-            raise KeyError(f"{self.label} not found in Calspec tables.")
+            raise KeyError(f"{self.label} not found in Gaia tables.")
         for col in gaia_sources.columns:
             setattr(self, col, gaia_sources[mask][col].values)
         self.wavelength = None
@@ -54,49 +64,24 @@ class Gaia:
         self.syst = None
 
     def get_spectrum_numpy(self, type="stis", date="latest"):
-        """Make a dictionary of numpy arrays with astropy units from Calspec
-        FITS file.
-
-        Returns
-        -------
-        table: dict
-            A dictionary with the FITS table columns and their astropy units.
-
-        Examples
-        --------
-        >>> c = Calspec("1812524")
-        >>> dict = c.get_spectrum_numpy()
-        >>> print(dict)   #doctest: +ELLIPSIS
-        {'WAVELENGTH': <Quantity [...
-
-        """
         gaia_spectra = get_gaia_spectra()
 
-        mask = np.array(gaia_spectra["SOURCE_ID"]) == self.label
-        astropy_table = gaia_spectra[mask]
-        d = {}
-        ncols = len(tab.columns)
-        for k in range(ncols):
-            d[tab.columns[k].name] = np.copy(tab[tab.columns[k].name][:])
-            if tab.columns[k].unit == "ANGSTROMS":
-                d[tab.columns[k].name] *= u.angstrom
-            elif tab.columns[k].unit == "NANOMETERS":
-                d[tab.columns[k].name] *= u.nanometer
-            elif tab.columns[k].unit == "FLAM":
-                d[tab.columns[k].name] *= u.erg / u.second / u.cm**2 / u.angstrom
-            elif tab.columns[k].unit == "SEC":
-                d[tab.columns[k].name] *= u.second
-        return d
+        mask = np.array(gaia_spectra["source_id"]) == self.label
+        calibrated_spectra, sampling = calibrate(gaia_spectra[mask])
+
+        wavelength = sampling * u.nm
+        gaia_flux = calibrated_spectra["flux"][0] * u.W / u.m**2 / u.nm
+        gaia_flux_error = calibrated_spectra["flux_error"][0] * u.W / u.m**2 / u.nm
+        gaia_flux_syserror = np.zeros_like(gaia_flux_error) * u.W / u.m**2 / u.nm
+        
+        return {
+            "WAVELENGTH": wavelength,
+            "FLUX": gaia_flux,
+            "STATERROR": gaia_flux_error,
+            "SYSERROR": gaia_flux_syserror,
+        }
 
     def plot_spectrum(self, xscale="log", yscale="log"):
-        """Plot Calspec spectrum.
-
-        Examples
-        --------
-        >>> c = Calspec("eta1 dor")
-        >>> c.plot_spectrum()
-
-        """
         t = self.get_spectrum_numpy()
         _ = plt.figure()
         plt.errorbar(t["WAVELENGTH"].value, t["FLUX"].value, yerr=t["STATERROR"].value)
