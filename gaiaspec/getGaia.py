@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from astropy import units as u
 from gaiaxpy import calibrate
-
+from getCalspec import getCalspec
 
 def _getPackageDir():
     """This method must live in the top level of this package, so if this
@@ -27,6 +27,23 @@ def get_gaia_spectra():
     filename = os.path.join(dirname, "./data/gaia_spectra_file.parquet")
     df = pd.read_parquet(filename)
     return df
+
+def get_gaia_calspec_matching():
+    dirname = _getPackageDir()
+    filename = os.path.join(dirname, "./data/calspec_gaia_matching.csv")
+    df = pd.read_csv(filename)
+    return df
+
+
+def get_gaia_name_from_calspec(star_label):
+    df = getCalspec.getCalspecDataFrame()
+    key = getCalspec.get_calspec_keys(star_label)
+    calspec_star_name = df["Star_name"][key].iloc[0]
+    df_matching = get_gaia_calspec_matching()
+    mask = df_matching["Star_name"] == calspec_star_name
+    if len(mask[mask]) != 1:
+        raise KeyError(f"The star label {star_label} was not matched with gaia")
+    return df_matching["GAIA_DR3_Name"][mask].iloc[0]
 
 
 def is_gaia(label):
