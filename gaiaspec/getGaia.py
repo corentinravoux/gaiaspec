@@ -6,6 +6,7 @@ import pandas as pd
 from astropy import units as u
 from gaiaxpy import calibrate
 from getCalspec import getCalspec
+from astroquery.simbad import SimbadClass
 
 def _getPackageDir():
     """This method must live in the top level of this package, so if this
@@ -46,13 +47,81 @@ def get_gaia_name_from_calspec(star_label):
     return df_matching["GAIA_DR3_Name"][mask].iloc[0]
 
 
+
+def get_gaia_from_query_id(source_id, 
+                           output_path=".cache/gaiaxpy", 
+                           truncation=False,):
+    """
+    Retrieve Gaia spectrum data for one specified source ID.
+    It can obtain the data from a CSV file located at the given 'path' or by calibrating the data with the specified 'wavelength_sampling'.
+
+    Args:
+        source_id (int): A source ID for which Gaia spectrum data is requested.
+        wavelength_sampling (float): The desired wavelength sampling for the spectrums.
+        path (str, optional): The path to a CSV file containing Gaia spectra data. Default is None.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the Gaia spectrums data for the specified source IDs.
+    """
+    os.makedirs(output_path, exist_ok=True)
+    cache_catalog = os.path.join(output_path, "gaiaxpy_spectra.h5")
+    sampling = os.path.join(output_path, "gaiaxpy_wls.npy")
+    is_incatalog = False
+    if os.path.isfile(cache_catalog):
+        df = pd.read_hdf(cache_catalog)
+        if source_id in list(df["source_id"]):
+            wls = np.load(sampling)
+            spec = df[df["source_id"]==source_id]
+            is_incatalog = True
+        else:
+            spec, wls = download_spectrum_from_id(source_id, truncation=truncation)
+            df = pd.concat([df, spec])
+    else:
+        spec, wls = download_spectrum_from_id(source_id, truncation=truncation)
+        df = spec
+    np.save(sampling, wls)
+    if not is_incatalog:
+        df.to_hdf(cache_catalog, key='df', mode='a')
+    return wls, spec["flux"][0], spec["flux_error"][0]
+
+
+def download_spectrum_from_id(source_id, 
+                              truncation=False,):
+    df_spectrum, wls = calibrate([source_id], truncation=truncation, save_file=False)
+    return df_spectrum, wls
+
+def get_gaia_name_from_star_name(label):
+    simbadQuerier = SimbadClass()
+    simbadQuerier.add_votable_fields('ids')
+    table = simbadQuerier.query_object(label)
+    if table is None:
+        return None
+    ids = list(table['IDS'].data)[0].split('|')
+    gaia_id = int([ii for ii in ids if "Gaia DR3" in ii][0].split(' ')[-1])
+    return gaia_id
+
+
 def is_gaia(label):
-    try:
-        label = int(label)
-    except:
-        return False
+    test_gaia_name = get_gaia_name_from_star_name(label)
+    if test_gaia_name is not None:
+        label = test_gaia_name
     gaia_sources = get_gaia_sources()
-    return label in np.array(gaia_sources["SOURCE_ID"])
+    gaia_in_source_catalog = label in np.array(gaia_sources["SOURCE_ID"])
+    if gaia_in_source_catalog:
+        is_gaia_bool = True
+        is_online_bool = False
+        return is_gaia_bool, is_online_bool
+    try :
+        download_spectrum_from_id(label)
+    except ValueError:
+        is_gaia_bool = True
+        is_online_bool = True
+        return is_gaia_bool, is_online_bool
+    
+    is_gaia_bool = False
+    is_online_bool = False
+    return is_gaia_bool, is_online_bool
+    
 
 
 class Gaia:
@@ -61,12 +130,9 @@ class Gaia:
         self,
         label,
     ):
-        try:
-            label = int(label)
-        except:
-            raise ValueError(
-                "The format of the given label is not appropriate for Gaia."
-            )
+        test_gaia_name = get_gaia_name_from_star_name(label)
+        if test_gaia_name is not None:
+            label = test_gaia_name
         self.label = label
 
         gaia_sources = get_gaia_sources()
@@ -84,11 +150,17 @@ class Gaia:
         gaia_spectra = get_gaia_spectra()
 
         mask = np.array(gaia_spectra["source_id"]) == self.label
-        calibrated_spectra, sampling = calibrate(gaia_spectra[mask])
+        if len(mask[mask]) != 0:
+            calibrated_spectra, wavelength = calibrate(gaia_spectra[mask])
+            gaia_flux = calibrated_spectra["flux"][0]
+            gaia_flux_error = calibrated_spectra["flux_error"][0] 
+        else:
+            wavelength, gaia_flux , gaia_flux_error = get_gaia_from_query_id(self.label)
 
-        wavelength = sampling * u.nm
-        gaia_flux = calibrated_spectra["flux"][0] * u.W / u.m**2 / u.nm
-        gaia_flux_error = calibrated_spectra["flux_error"][0] * u.W / u.m**2 / u.nm
+
+        wavelength = wavelength * u.nm
+        gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
+        gaia_flux_error = gaia_flux_error * u.W / u.m**2 / u.nm
         gaia_flux_syserror = np.zeros_like(gaia_flux_error) * u.W / u.m**2 / u.nm
         
         return {
