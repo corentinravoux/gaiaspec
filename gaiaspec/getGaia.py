@@ -113,14 +113,13 @@ def is_gaia(label):
         return is_gaia_bool, is_online_bool
     try :
         download_spectrum_from_id(label)
-    except ValueError:
         is_gaia_bool = True
         is_online_bool = True
         return is_gaia_bool, is_online_bool
-    
-    is_gaia_bool = False
-    is_online_bool = False
-    return is_gaia_bool, is_online_bool
+    except ValueError:
+        is_gaia_bool = False
+        is_online_bool = False
+        return is_gaia_bool, is_online_bool
     
 
 
@@ -137,10 +136,9 @@ class Gaia:
 
         gaia_sources = get_gaia_sources()
         mask = np.array(gaia_sources["SOURCE_ID"]) == self.label
-        if len(mask[mask]) < 1:
-            raise KeyError(f"{self.label} not found in Gaia tables.")
-        for col in gaia_sources.columns:
-            setattr(self, col, gaia_sources[mask][col].values)
+        if len(mask[mask]) >= 1:
+            for col in gaia_sources.columns:
+                setattr(self, col, gaia_sources[mask][col].values)
         self.wavelength = None
         self.flux = None
         self.stat = None
