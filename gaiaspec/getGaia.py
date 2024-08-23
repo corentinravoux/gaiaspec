@@ -101,26 +101,26 @@ def get_gaia_name_from_star_name(label):
     return gaia_id
 
 
-def is_gaia(label):
+def is_gaiaspec(label):
     test_gaia_name = get_gaia_name_from_star_name(label)
     if test_gaia_name is not None:
         label = test_gaia_name
     gaia_sources = get_gaia_sources()
-    gaia_in_source_catalog = label in np.array(gaia_sources["SOURCE_ID"])
-    if gaia_in_source_catalog:
-        is_gaia_bool = True
-        is_online_bool = False
-        return is_gaia_bool, is_online_bool
-    try :
-        download_spectrum_from_id(label)
-        is_gaia_bool = True
-        is_online_bool = True
-        return is_gaia_bool, is_online_bool
-    except ValueError:
-        is_gaia_bool = False
-        is_online_bool = False
-        return is_gaia_bool, is_online_bool
+    return label in np.array(gaia_sources["SOURCE_ID"])
     
+
+def is_gaia_full(label):
+    test_gaia_name = get_gaia_name_from_star_name(label)
+    if test_gaia_name is not None:
+        label = test_gaia_name
+    try :
+        gaia_spectrum = get_gaia_from_query_id(label)
+        if gaia_spectrum is not None:
+            return True
+        else:
+            return False
+    except ValueError:
+        return False   
 
 
 class Gaia:
