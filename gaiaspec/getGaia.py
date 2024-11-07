@@ -159,7 +159,7 @@ class Gaia:
         wavelength = wavelength * u.nm
         gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
         gaia_flux_error = gaia_flux_error * u.W / u.m**2 / u.nm
-        gaia_flux_syserror = np.zeros_like(gaia_flux_error) * u.W / u.m**2 / u.nm
+        gaia_flux_syserror = np.zeros(gaia_flux_error.shape) * u.W / u.m**2 / u.nm
         
         return {
             "WAVELENGTH": wavelength,
