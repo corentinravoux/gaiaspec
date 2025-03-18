@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy import units as u
+from astropy.io import ascii
 from astroquery.simbad import SimbadClass
 from gaiaxpy import calibrate
 from getCalspec import getCalspec
@@ -96,10 +97,34 @@ def download_spectrum_from_id(
     return df_spectrum, wls
 
 
+def _get_cache_dir():
+    cache = os.path.join(os.path.dirname(__file__), ".cache/simbad")
+    os.makedirs(cache, exist_ok=True)
+    return cache
+
+
+def _get_cache_file(tag):
+    filename = tag.replace("*", "").replace(" ", "_").replace(".", "_")
+    return filename
+
+
 def get_gaia_name_from_star_name(label):
-    simbadQuerier = SimbadClass()
-    simbadQuerier.add_votable_fields("ids")
-    table = simbadQuerier.query_object(label)
+    """
+    Examples
+    --------
+    >>> id = get_gaia_name_from_star_name("HD111980")
+    >>> id
+    3510294882898890880
+    """
+    cache_location = _get_cache_dir()
+    cache_file = f"{_get_cache_file(label)}.ecsv"
+    if cache_file in os.listdir(cache_location):
+        table = ascii.read(os.path.join(cache_location, cache_file))
+    else:
+        simbadQuerier = SimbadClass()
+        simbadQuerier.add_votable_fields("ids")
+        table = simbadQuerier.query_object(label)
+        table.write(os.path.join(cache_location, cache_file), overwrite=True)
     if table is None:
         return None
     try:
