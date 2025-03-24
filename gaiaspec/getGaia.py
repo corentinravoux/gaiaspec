@@ -1,8 +1,10 @@
 import os
+import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import astropy.config
 from astropy import units as u
 from astropy.io import ascii
 from astroquery.simbad import SimbadClass
