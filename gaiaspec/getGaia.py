@@ -1,8 +1,10 @@
 import os
+import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import astropy.config
 from astropy import units as u
 from astropy.io import ascii
 from astroquery.simbad import SimbadClass
@@ -98,7 +100,7 @@ def download_spectrum_from_id(
 
 
 def _get_cache_dir():
-    cache = os.path.join(os.path.dirname(__file__), ".cache/simbad")
+    cache = os.path.join(astropy.config.get_cache_dir(), "astroquery", "Simbad")
     os.makedirs(cache, exist_ok=True)
     return cache
 
@@ -106,6 +108,11 @@ def _get_cache_dir():
 def _get_cache_file(tag):
     filename = tag.replace("*", "").replace(" ", "_").replace(".", "_")
     return filename
+
+
+def _clean_cache_dir():
+    cache = _get_cache_dir()
+    shutil.rmtree(cache)
 
 
 def get_gaia_name_from_star_name(label):
