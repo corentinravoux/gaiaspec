@@ -19,9 +19,9 @@ def create_standard_catalog(
     source_id_list=None,
     dl_threshold=5000,
 ):
-    if (query is None)&(source_id_list is None):
+    if (query is None) & (source_id_list is None):
         raise ValueError("Please give either a query or a source_id_list")
-    if (query is not None)&(source_id_list is not None):
+    if (query is not None) & (source_id_list is not None):
         gaia_source_table = []
         for source_id in source_id_list:
             query_id = query + f"  WHERE source_id = {source_id}"
@@ -31,12 +31,12 @@ def create_standard_catalog(
     else:
         job = Gaia.launch_job_async(query)
         gaia_source_table = job.get_results()
-    ids = gaia_source_table["SOURCE_ID"]
+    ids = gaia_source_table["source_id"]
     ids_chunks = list(chunks_data_split(ids, dl_threshold))
     datalink_all = []
 
     retrieval_type = "XP_CONTINUOUS"
-    data_structure = "COMBINED"
+    data_structure = "RAW"
     data_release = "Gaia DR3"
 
     ii = 0
