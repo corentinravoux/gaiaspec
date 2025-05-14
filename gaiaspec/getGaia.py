@@ -1,10 +1,10 @@
 import os
 import shutil
 
+import astropy.config
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import astropy.config
 from astropy import units as u
 from astropy.io import ascii
 from astroquery.simbad import SimbadClass
@@ -123,17 +123,19 @@ def get_gaia_name_from_star_name(label):
     >>> id
     3510294882898890880
     """
+    label_test = str(label)
     cache_location = _get_cache_dir()
-    cache_file = f"{_get_cache_file(label)}.ecsv"
+    cache_file = f"{_get_cache_file(label_test)}.ecsv"
     if cache_file in os.listdir(cache_location):
         table = ascii.read(os.path.join(cache_location, cache_file))
     else:
         simbadQuerier = SimbadClass()
         simbadQuerier.add_votable_fields("ids")
-        table = simbadQuerier.query_object(label)
-        table.write(os.path.join(cache_location, cache_file), overwrite=True)
+        table = simbadQuerier.query_object(label_test)
     if table is None:
         return None
+    else:
+        table.write(os.path.join(cache_location, cache_file), overwrite=True)
     try:
         ids = list(table["IDS"].data)[0].split("|")
     except:
@@ -147,7 +149,7 @@ def is_gaiaspec(label):
     if test_gaia_name is not None:
         label = test_gaia_name
     gaia_sources = get_gaia_sources()
-    return label in np.array(gaia_sources["SOURCE_ID"])
+    return label in np.array(gaia_sources["source_id"])
 
 
 def is_gaia_full(label):
@@ -176,7 +178,7 @@ class Gaia:
         self.label = label
 
         gaia_sources = get_gaia_sources()
-        mask = np.array(gaia_sources["SOURCE_ID"]) == self.label
+        mask = np.array(gaia_sources["source_id"]) == self.label
         if len(mask[mask]) >= 1:
             for col in gaia_sources.columns:
                 setattr(self, col, gaia_sources[mask][col].values)
