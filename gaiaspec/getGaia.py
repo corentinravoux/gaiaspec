@@ -139,7 +139,10 @@ def get_gaia_name_from_star_name(label):
     try:
         ids = list(table["IDS"].data)[0].split("|")
     except:
-        ids = list(table["ids"].data)[0].split("|")
+        try:
+            ids = list(table["ids"].data)[0].split("|")
+        except:
+            return None
     gaia_id = int([ii for ii in ids if "Gaia DR3" in ii][0].split(" ")[-1])
     return gaia_id
 
