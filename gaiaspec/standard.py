@@ -1,12 +1,76 @@
 import os
 
 import numpy as np
+import pandas as pd
 from astropy.table import vstack
 from astroquery.gaia import Gaia
 
 
 def login():
     Gaia.login()
+
+
+def get_spType(llist):
+    """
+    Function to get star spectral type from Simmbad
+
+    Parameters
+    ----------
+    llist : list(str)
+        List of star ids.
+
+    Returns
+    -------
+    res : pandas df
+        two cols: (target,spectral type).
+
+    """
+
+    from astroquery.simbad import Simbad
+
+    simbad = Simbad()
+    simbad.add_votable_fields("sptype")
+
+    res = pd.DataFrame(llist, columns=["target"])
+    tabb = simbad.query_objects(llist).to_pandas()
+    res["spType"] = tabb["sp_type"]
+    res = res.replace(r"^\s*$", "Unknown", regex=True)
+
+    return res
+
+
+def get_ddf():
+    """
+    To get DDFs (name and position)
+
+    Returns
+    -------
+    df : TYPE
+        DESCRIPTION.
+
+    """
+    fields = ["COSMOS", "ECDFS", "EDFS_a", "EDFS_b", "ELAISS1", "XMM_LSS"]
+    RA = [
+        150.0925611434997,
+        53.15681804806202,
+        59.42829027800171,
+        63.13103069845953,
+        9.481137271096197,
+        35.704990247346316,
+    ]
+    Dec = [
+        2.1945447391964454,
+        -28.09929786400517,
+        -49.13844643312827,
+        -47.775308526672944,
+        -44.017183266469296,
+        -4.754416031251561,
+    ]
+
+    df = pd.DataFrame(fields, columns=["field"])
+    df["RA"] = RA
+    df["DEC"] = Dec
+    return df
 
 
 def chunks_data_split(lst, n):
@@ -65,6 +129,64 @@ def create_standard_catalog(
     gaia_spectra_table = vstack(product_list_groups)
 
     return gaia_source_table, gaia_spectra_table
+
+
+def create_standard_catalog_around_fields(
+    ra_centers,
+    dec_centers,
+    delta_ra,
+    delta_dec,
+    mag_max,
+    name,
+    star_type_selection=None,
+):
+    results_fields = []
+    for i in range(len(ra_centers)):
+        ra_center = ra_centers[i]
+        dec_center = dec_centers[i]
+
+        query = f"SELECT source_id, ra, dec, pmra, pmdec, parallax, phot_g_mean_mag, phot_bp_mean_mag, phot_rp_mean_mag, l, b, phot_variable_flag, ref_epoch \
+                FROM gaiadr3.gaia_source \
+                WHERE has_xp_sampled = 'True'\
+                AND phot_variable_flag != 'VARIABLE'\
+                AND astrometric_excess_noise < 0.5 \
+                AND ra > {ra_center  - delta_ra} AND ra < {ra_center + delta_ra} \
+                AND dec > {dec_center  - delta_dec} AND dec < {dec_center + delta_dec} \
+                AND phot_g_mean_mag < {mag_max}"
+
+        job = Gaia.launch_job_async(query)
+        results = job.get_results()
+        results_fields.append(results)
+
+    results_fields = np.concatenate(results_fields)
+
+    source_id_list = results_fields["source_id"]
+
+    type_stars = np.array(
+        get_spType([f"Gaia DR3 {source_id}" for source_id in source_id_list])["spType"]
+    )
+    if star_type_selection is not None:
+        mask_type = np.array([False for _ in range(len(type_stars))])
+        for _, typ in enumerate(star_type_selection):
+            mask_type |= np.array(
+                [type_stars[j][0] == typ for j in range(len(type_stars))]
+            )
+        source_id_list = source_id_list[mask_type]
+        type_stars = type_stars[mask_type]
+
+    query = f"SELECT source_id, ra, dec, pmra, pmdec, parallax, phot_g_mean_mag, phot_bp_mean_mag, phot_rp_mean_mag, l, b, phot_variable_flag, ref_epoch, rv_template_teff, teff_gspphot \
+        FROM gaiadr3.gaia_source"
+
+    gaia_source_table, gaia_spectra_table = create_standard_catalog(
+        query=query,
+        source_id_list=source_id_list,
+        dl_threshold=5000,
+    )
+
+    gaia_source_table.to_pandas().to_parquet(f"{name}_source.parquet")
+    gaia_spectra_table.to_pandas().to_parquet(f"{name}_spectra.parquet")
+
+    return gaia_source_table, gaia_spectra_table, type_stars
 
 
 # Catalog selection function of Damiano:
