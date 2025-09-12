@@ -11,6 +11,8 @@ ddf_fields = standard.get_ddf()
 ra_centers = ddf_fields["RA"]
 dec_centers = ddf_fields["DEC"]
 
+nameout = "gaia_ddf_catalogs"
+
 standard.login()
 
 gaia_source_table, gaia_spectra_table, type_stars = (
@@ -20,7 +22,7 @@ gaia_source_table, gaia_spectra_table, type_stars = (
         delta_ra,
         delta_dec,
         mag_max_selection,
-        "test",
+        nameout,
         star_type_selection=class_prefered,
     )
 )
