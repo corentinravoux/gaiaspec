@@ -130,20 +130,21 @@ def get_gaia_name_from_star_name(label):
         table = ascii.read(os.path.join(cache_location, cache_file))
     else:
         simbadQuerier = SimbadClass()
-        simbadQuerier.add_votable_fields("ids")
-        table = simbadQuerier.query_object(label_test)
+        simbadQuerier.add_votable_fields(["ids", "matched_id"])
+        table = simbadQuerier.query_object(label)
+        table.write(os.path.join(cache_location, cache_file), overwrite=True)
     if table is None:
         return None
+    for col in ["IDS", "ids", "matched_id"]:
+        if col in table.colnames:
+            key_id = col
+            break
+    ids = list(table[key_id].data)[0].split("|")
+    gaia_id = [ii for ii in ids if "Gaia DR3" in ii]
+    if gaia_id:
+        gaia_id = int(gaia_id[0].split(" ")[-1])
     else:
-        table.write(os.path.join(cache_location, cache_file), overwrite=True)
-    try:
-        ids = list(table["IDS"].data)[0].split("|")
-    except:
-        try:
-            ids = list(table["ids"].data)[0].split("|")
-        except:
-            return None
-    gaia_id = int([ii for ii in ids if "Gaia DR3" in ii][0].split(" ")[-1])
+        gaia_id = None
     return gaia_id
 
 
@@ -159,6 +160,8 @@ def is_gaia_full(label):
     test_gaia_name = get_gaia_name_from_star_name(label)
     if test_gaia_name is not None:
         label = test_gaia_name
+    else:
+        return False
     try:
         gaia_spectrum = get_gaia_from_query_id(label)
         if gaia_spectrum is not None:
