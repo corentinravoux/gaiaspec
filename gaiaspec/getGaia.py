@@ -11,31 +11,25 @@ from astroquery.simbad import SimbadClass
 from gaiaxpy import calibrate
 from getCalspec import getCalspec
 
-
-def _getPackageDir():
-    """This method must live in the top level of this package, so if this
-    moves to a utils file then the returned path will need to account for that.
-    """
-    dirname = os.path.dirname(__file__)
-    return dirname
+from gaiaspec import spectrum_correction, utils
 
 
 def get_gaia_sources():
-    dirname = _getPackageDir()
+    dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/gaia_source_file.parquet")
     df = pd.read_parquet(filename)
     return df
 
 
 def get_gaia_spectra():
-    dirname = _getPackageDir()
+    dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/gaia_spectra_file.parquet")
     df = pd.read_parquet(filename)
     return df
 
 
 def get_gaia_calspec_matching():
-    dirname = _getPackageDir()
+    dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/calspec_gaia_matching.csv")
     df = pd.read_csv(filename)
     return df
@@ -193,7 +187,11 @@ class Gaia:
         self.stat = None
         self.syst = None
 
-    def get_spectrum_numpy(self, type="stis", date="latest"):
+    def get_spectrum_numpy(
+        self,
+        flux_correction=None,
+        correction_threshold=0.8,
+    ):
         gaia_spectra = get_gaia_spectra()
 
         mask = np.array(gaia_spectra["source_id"]) == self.label
@@ -208,6 +206,15 @@ class Gaia:
         gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
         gaia_flux_error = gaia_flux_error * u.W / u.m**2 / u.nm
         gaia_flux_syserror = np.zeros(gaia_flux_error.shape) * u.W / u.m**2 / u.nm
+
+        if flux_correction is not None:
+            gaia_flux = spectrum_correction.return_gaia_spectra_correction(
+                wavelength.to_value(),
+                gaia_flux.to_value(),
+                corr_threshold=correction_threshold,
+                choose_corr=flux_correction,
+            )
+            gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
 
         return {
             "WAVELENGTH": wavelength,
