@@ -64,6 +64,7 @@ def find_best_gaia_correction(
             )
             wave = df_gaia_correction_sorted["wavelength"][i]
             correction = np.interp(wavelength, wave, correction_ref)
+            correction[np.isnan(correction)] = 1.0
             return correction
 
 

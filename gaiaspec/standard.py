@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from astropy.table import vstack
+from astropy.table import Table, vstack
 from astroquery.gaia import Gaia
 
 
@@ -37,6 +37,40 @@ def get_spType(llist):
     res = res.replace(r"^\s*$", "Unknown", regex=True)
 
     return res
+
+
+def get_type_gaia(
+    sourceidlist,
+    Gaia_object,
+    user="cravoux",
+):
+    table_id = Table([list(sourceidlist)], names=["gaia_id"], meta={"meta": "table"})
+    Gaia_object.upload_table(upload_resource=table_id, table_name="tableid")
+
+    query = f"SELECT ap.* \
+    FROM gaiadr3.astrophysical_parameters AS ap \
+    JOIN user_{user}.tableid as usert ON usert.gaia_id = ap.source_id"
+
+    # launch query and save and return a Dataframe
+    job = Gaia_object.launch_job_async(query)
+    results = job.get_results().to_pandas()
+
+    # suggest delete your table from your personal space
+    Gaia_object.delete_user_table(table_name="tableid")
+
+    df_types = results[
+        [
+            "teff_gspphot",
+            "teff_gspspec",
+            "teff_gspspec_lower",
+            "teff_gspspec_upper",
+            "teff_espucd",
+            "teff_msc1",
+            "teff_msc2",
+            "spectraltype_esphs",
+        ]
+    ]
+    return df_types
 
 
 def get_ddf():
