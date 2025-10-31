@@ -186,6 +186,7 @@ class Gaia:
         self.flux = None
         self.stat = None
         self.syst = None
+        self.correction_flux = None
 
     def get_spectrum_numpy(
         self,
@@ -208,13 +209,14 @@ class Gaia:
         gaia_flux_syserror = np.zeros(gaia_flux_error.shape) * u.W / u.m**2 / u.nm
 
         if flux_correction is not None:
-            gaia_flux = spectrum_correction.return_gaia_spectra_correction(
+            correction = spectrum_correction.return_gaia_spectra_correction(
                 wavelength.to_value(),
                 gaia_flux.to_value(),
                 corr_threshold=correction_threshold,
                 choose_corr=flux_correction,
             )
-            gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
+            gaia_flux = gaia_flux * correction
+            self.correction_flux = correction
 
         return {
             "WAVELENGTH": wavelength,
