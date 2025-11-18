@@ -124,12 +124,13 @@ def get_gaia_name_from_star_name(label):
         table = ascii.read(os.path.join(cache_location, cache_file))
     else:
         simbadQuerier = SimbadClass()
-        simbadQuerier.add_votable_fields(["ids", "matched_id"])
+        simbadQuerier.add_votable_fields("IDS")
+        simbadQuerier.add_votable_fields("ids")
         table = simbadQuerier.query_object(label)
         table.write(os.path.join(cache_location, cache_file), overwrite=True)
     if table is None:
         return None
-    for col in ["IDS", "ids", "matched_id"]:
+    for col in ["IDS", "ids"]:
         if col in table.colnames:
             key_id = col
             break
