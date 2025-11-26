@@ -130,10 +130,12 @@ def get_gaia_name_from_star_name(label):
         table.write(os.path.join(cache_location, cache_file), overwrite=True)
     if table is None:
         return None
-    for col in ["IDS", "ids"]:
+    for col in ["IDS", "ids", "matched_id"]:
         if col in table.colnames:
             key_id = col
             break
+    if len(list(table[key_id].data)) == 0:
+        return None
     ids = list(table[key_id].data)[0].split("|")
     gaia_id = [ii for ii in ids if "Gaia DR3" in ii]
     if gaia_id:
