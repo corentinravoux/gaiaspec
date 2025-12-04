@@ -142,7 +142,7 @@ def get_gaia_name_from_star_name(label):
         table = ascii.read(os.path.join(cache_location, cache_file))
     else:
         simbadQuerier = SimbadClass()
-        simbadQuerier.add_votable_fields(_SIMBAD_VOTABLE_FIELDS)
+        simbadQuerier.add_votable_fields(*_SIMBAD_VOTABLE_FIELDS)
         table = simbadQuerier.query_object(label)
         table.write(os.path.join(cache_location, cache_file), overwrite=True)
     if table is None:
