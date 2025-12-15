@@ -127,7 +127,10 @@ def _clean_cache_dir():
     shutil.rmtree(cache)
 
 
-def get_gaia_name_from_star_name(label):
+def get_gaia_name_from_star_name(
+    label,
+    debug=False,
+):
     """
     Examples
     --------
@@ -139,22 +142,38 @@ def get_gaia_name_from_star_name(label):
     cache_location = _get_cache_dir()
     cache_file = f"{_get_cache_file(label_test)}.ecsv"
     if cache_file in os.listdir(cache_location):
+        if debug:
+            print(f"Using cached Simbad query for {label}")
         table = ascii.read(os.path.join(cache_location, cache_file))
     else:
+        if debug:
+            print(f"Querying Simbad for {label}")
         simbadQuerier = SimbadClass()
         simbadQuerier.add_votable_fields(*_SIMBAD_VOTABLE_FIELDS)
         table = simbadQuerier.query_object(label)
         table.write(os.path.join(cache_location, cache_file), overwrite=True)
+
     if table is None:
+        if debug:
+            print(f"No Simbad entry found for {label}")
         return None
+    if debug:
+        print(f"Table columns: {table.colnames}")
+        print(f"Table contents: {table}")
     for col in ["IDS", "ids", "matched_id"]:
         if col in table.colnames:
             key_id = col
             break
+    if debug:
+        print(f"Using column '{key_id}' to extract Gaia ID")
     if len(list(table[key_id].data)) == 0:
         return None
     ids = list(table[key_id].data)[0].split("|")
+    if debug:
+        print(f"IDs found for {label}: {ids}")
     gaia_id = [ii for ii in ids if "Gaia DR3" in ii]
+    if debug:
+        print(f"Gaia IDs found for {label}: {gaia_id}")
     if gaia_id:
         gaia_id = int(gaia_id[0].split(" ")[-1])
     else:
@@ -162,27 +181,32 @@ def get_gaia_name_from_star_name(label):
     return gaia_id
 
 
-def is_gaiaspec(label):
-    test_gaia_name = get_gaia_name_from_star_name(label)
+def is_gaiaspec(label, debug=False):
+    test_gaia_name = get_gaia_name_from_star_name(label, debug=debug)
     if test_gaia_name is not None:
         label = test_gaia_name
     gaia_sources = get_gaia_sources()
     return label in np.array(gaia_sources["source_id"])
 
 
-def is_gaia_full(label):
-    test_gaia_name = get_gaia_name_from_star_name(label)
+def is_gaia_full(label, debug=False):
+    test_gaia_name = get_gaia_name_from_star_name(label, debug=debug)
     if test_gaia_name is not None:
         label = test_gaia_name
     else:
         return False
     try:
         gaia_spectrum = get_gaia_from_query_id(label)
+        if debug:
+            print(f"Gaia spectrum found for {label}")
         if gaia_spectrum is not None:
             return True
         else:
             return False
-    except ValueError:
+    except ValueError as ve:
+        if debug:
+            print(f"ValueError: {ve}")
+            print(f"No Gaia spectrum found for {label}")
         return False
 
 
