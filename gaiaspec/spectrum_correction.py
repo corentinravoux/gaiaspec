@@ -56,7 +56,7 @@ def find_best_gaia_correction(
             if verbose:
                 print("no GAIA correction was found under the selected criteria")
             return np.ones_like(wavelength)
-        if (df_gaia_correction_sorted[f"correlation_with_gaia"][i] is not np.nan) and (
+        if (df_gaia_correction_sorted["correlation_with_gaia"][i] is not np.nan) and (
             df_gaia_correction_sorted[f"gaia_corrected_flux_{choose_corr}"][i]
             is not None
         ):
