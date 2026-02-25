@@ -46,6 +46,27 @@ def get_gaia_spectra():
     return df
 
 
+def get_gaia_spectra_calibrated(
+    flux_correction=None,
+    correction_threshold=0.8,
+):
+    df = get_gaia_spectra()
+    calibrated_spectra, wavelength = calibrate(df)
+    spectra = []
+    for i in range(len(calibrated_spectra)):
+        gaia_flux = calibrated_spectra["flux"][i]
+        gaia_flux_error = calibrated_spectra["flux_error"][i]
+        converted_spectra = convert_gaia_spectrum_to_calspec_format(
+            wavelength,
+            gaia_flux,
+            gaia_flux_error,
+            flux_correction=flux_correction,
+            correction_threshold=correction_threshold,
+        )
+        spectra.append(converted_spectra)
+    return spectra
+
+
 def get_gaia_calspec_matching():
     dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/calspec_gaia_matching.csv")
@@ -109,6 +130,38 @@ def download_spectrum_from_id(
 ):
     df_spectrum, wls = calibrate([source_id], truncation=truncation, save_file=False)
     return df_spectrum, wls
+
+
+def convert_gaia_spectrum_to_calspec_format(
+    wavelength,
+    gaia_flux,
+    gaia_flux_error,
+    flux_correction=None,
+    correction_threshold=0.8,
+):
+
+    wavelength = wavelength * u.nm
+    gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
+    gaia_flux_error = gaia_flux_error * u.W / u.m**2 / u.nm
+    gaia_flux_syserror = np.zeros(gaia_flux_error.shape) * u.W / u.m**2 / u.nm
+
+    if flux_correction is not None:
+        correction = spectrum_correction.return_gaia_spectra_correction(
+            wavelength.to_value(),
+            gaia_flux.to_value(),
+            corr_threshold=correction_threshold,
+            choose_corr=flux_correction,
+        )
+        gaia_flux = gaia_flux * correction
+        gaia_flux_error = gaia_flux_error * correction
+        gaia_flux_syserror = gaia_flux_syserror * correction
+
+    return {
+        "WAVELENGTH": wavelength,
+        "FLUX": gaia_flux,
+        "STATERROR": gaia_flux_error,
+        "SYSERROR": gaia_flux_syserror,
+    }
 
 
 def _get_cache_dir():
@@ -247,27 +300,13 @@ class Gaia:
         else:
             wavelength, gaia_flux, gaia_flux_error = get_gaia_from_query_id(self.label)
 
-        wavelength = wavelength * u.nm
-        gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
-        gaia_flux_error = gaia_flux_error * u.W / u.m**2 / u.nm
-        gaia_flux_syserror = np.zeros(gaia_flux_error.shape) * u.W / u.m**2 / u.nm
-
-        if flux_correction is not None:
-            correction = spectrum_correction.return_gaia_spectra_correction(
-                wavelength.to_value(),
-                gaia_flux.to_value(),
-                corr_threshold=correction_threshold,
-                choose_corr=flux_correction,
-            )
-            gaia_flux = gaia_flux * correction
-            self.correction_flux = correction
-
-        return {
-            "WAVELENGTH": wavelength,
-            "FLUX": gaia_flux,
-            "STATERROR": gaia_flux_error,
-            "SYSERROR": gaia_flux_syserror,
-        }
+        return convert_gaia_spectrum_to_calspec_format(
+            wavelength,
+            gaia_flux,
+            gaia_flux_error,
+            flux_correction=flux_correction,
+            correction_threshold=correction_threshold,
+        )
 
     def plot_spectrum(self, xscale="log", yscale="log"):
         t = self.get_spectrum_numpy()
