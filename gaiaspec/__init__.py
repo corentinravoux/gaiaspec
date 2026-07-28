@@ -1,4 +1,9 @@
-"""Init file of the flip package."""
+"""Top-level package for gaiaspec.
+
+Exposes :mod:`gaiaspec.getGaia` (retrieve and calibrate Gaia XP spectra as
+CALSPEC-style standards) and :mod:`gaiaspec.standard` (build standard-star
+catalogs from the Gaia archive).
+"""
 
 import os
 

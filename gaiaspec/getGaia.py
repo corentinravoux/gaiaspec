@@ -1,3 +1,13 @@
+"""Retrieve and calibrate Gaia XP spectra as CALSPEC-style standards.
+
+Front-end of gaiaspec. Loads the bundled Gaia source / spectra tables, resolves
+a star to its Gaia DR3 source id (via Simbad or the CALSPEC matching table),
+calibrates the Gaia XP coefficients into flux-vs-wavelength spectra (via
+``gaiaxpy``), optionally applies the empirical flux correction from
+:mod:`gaiaspec.spectrum_correction`, and exposes it in the CALSPEC dictionary
+format. The :class:`Gaia` class wraps a single standard star.
+"""
+
 import os
 import shutil
 
@@ -33,6 +43,11 @@ except ImportError:
 
 
 def get_gaia_sources():
+    """Load the bundled Gaia source catalog.
+
+    Returns:
+        pandas.DataFrame: The ``data/gaia_source_file.parquet`` source table.
+    """
     dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/gaia_source_file.parquet")
     df = pd.read_parquet(filename)
@@ -40,6 +55,11 @@ def get_gaia_sources():
 
 
 def get_gaia_spectra():
+    """Load the bundled Gaia XP spectra table (uncalibrated coefficients).
+
+    Returns:
+        pandas.DataFrame: The ``data/gaia_spectra_file.parquet`` table.
+    """
     dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/gaia_spectra_file.parquet")
     df = pd.read_parquet(filename)
@@ -50,6 +70,17 @@ def get_gaia_spectra_calibrated(
     flux_correction=None,
     correction_threshold=0.8,
 ):
+    """Calibrate every bundled Gaia XP spectrum into CALSPEC-format flux.
+
+    Args:
+        flux_correction (str, optional): Empirical correction variant to apply
+            (e.g. ``"m3"``); None disables the correction.
+        correction_threshold (float, optional): Minimum correlation for the
+            correction to be applied.
+
+    Returns:
+        list[dict]: One CALSPEC-format spectrum dict per source.
+    """
     df = get_gaia_spectra()
     calibrated_spectra, wavelength = calibrate(df)
     spectra = []
@@ -68,6 +99,12 @@ def get_gaia_spectra_calibrated(
 
 
 def get_gaia_calspec_matching():
+    """Load the bundled CALSPEC <-> Gaia name matching table.
+
+    Returns:
+        pandas.DataFrame: The ``data/calspec_gaia_matching.csv`` table with
+        ``Star_name`` and ``GAIA_DR3_Name`` columns.
+    """
     dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/calspec_gaia_matching.csv")
     df = pd.read_csv(filename)
@@ -75,6 +112,17 @@ def get_gaia_calspec_matching():
 
 
 def get_gaia_name_from_calspec(star_label):
+    """Resolve a CALSPEC star label to its Gaia DR3 name.
+
+    Args:
+        star_label (str): CALSPEC star label / key.
+
+    Returns:
+        str: The matching ``GAIA_DR3_Name``.
+
+    Raises:
+        KeyError: If the star is not matched to exactly one Gaia entry.
+    """
     df = getCalspec.getCalspecDataFrame()
     key = getCalspec.get_calspec_keys(star_label)
     calspec_star_name = df["Star_name"][key].iloc[0]
@@ -128,6 +176,16 @@ def download_spectrum_from_id(
     source_id,
     truncation=False,
 ):
+    """Download and calibrate a single Gaia XP spectrum from the Gaia archive.
+
+    Args:
+        source_id (int): Gaia DR3 source id.
+        truncation (bool, optional): Apply gaiaxpy basis truncation.
+
+    Returns:
+        tuple: ``(df_spectrum, wavelength)`` — the calibrated spectrum dataframe
+        and the wavelength sampling.
+    """
     df_spectrum, wls = calibrate([source_id], truncation=truncation, save_file=False)
     return df_spectrum, wls
 
@@ -139,7 +197,21 @@ def convert_gaia_spectrum_to_calspec_format(
     flux_correction=None,
     correction_threshold=0.8,
 ):
+    """Wrap a calibrated Gaia spectrum in the CALSPEC dictionary format.
 
+    Attaches astropy units, and optionally multiplies the flux and errors by the
+    empirical correction from :mod:`gaiaspec.spectrum_correction`.
+
+    Args:
+        wavelength (numpy.ndarray): Wavelength grid (nm).
+        gaia_flux (numpy.ndarray): Flux (W m^-2 nm^-1).
+        gaia_flux_error (numpy.ndarray): Statistical flux error.
+        flux_correction (str, optional): Correction variant (None disables it).
+        correction_threshold (float, optional): Minimum correlation to apply it.
+
+    Returns:
+        dict: ``{"WAVELENGTH", "FLUX", "STATERROR", "SYSERROR"}`` with units.
+    """
     wavelength = wavelength * u.nm
     gaia_flux = gaia_flux * u.W / u.m**2 / u.nm
     gaia_flux_error = gaia_flux_error * u.W / u.m**2 / u.nm
@@ -165,17 +237,31 @@ def convert_gaia_spectrum_to_calspec_format(
 
 
 def _get_cache_dir():
+    """Return (creating if needed) the Simbad query cache directory.
+
+    Returns:
+        str: The astroquery Simbad cache directory path.
+    """
     cache = os.path.join(astropy.config.get_cache_dir(), "astroquery", "Simbad")
     os.makedirs(cache, exist_ok=True)
     return cache
 
 
 def _get_cache_file(tag):
+    """Sanitise a star label into a cache file basename.
+
+    Args:
+        tag (str): Star label.
+
+    Returns:
+        str: The label with ``*``/spaces/dots removed or replaced.
+    """
     filename = tag.replace("*", "").replace(" ", "_").replace(".", "_")
     return filename
 
 
 def _clean_cache_dir():
+    """Delete the whole Simbad query cache directory."""
     cache = _get_cache_dir()
     shutil.rmtree(cache)
 
@@ -235,6 +321,18 @@ def get_gaia_name_from_star_name(
 
 
 def is_gaiaspec(label, debug=False):
+    """Whether a star is present in the bundled Gaia source catalog.
+
+    Resolves the label to a Gaia DR3 id (via Simbad) if needed, then checks the
+    bundled source table.
+
+    Args:
+        label (str | int): Star name or Gaia source id.
+        debug (bool, optional): Print resolution diagnostics.
+
+    Returns:
+        bool: True if the star is in the bundled catalog.
+    """
     test_gaia_name = get_gaia_name_from_star_name(label, debug=debug)
     if test_gaia_name is not None:
         label = test_gaia_name
@@ -243,6 +341,18 @@ def is_gaiaspec(label, debug=False):
 
 
 def is_gaia_full(label, debug=False):
+    """Whether a Gaia XP spectrum can be retrieved for a star.
+
+    Resolves the label to a Gaia DR3 id and tries to fetch its spectrum from the
+    archive/cache.
+
+    Args:
+        label (str | int): Star name or Gaia source id.
+        debug (bool, optional): Print resolution diagnostics.
+
+    Returns:
+        bool: True if a spectrum is available.
+    """
     test_gaia_name = get_gaia_name_from_star_name(label, debug=debug)
     if test_gaia_name is not None:
         label = test_gaia_name
@@ -264,11 +374,22 @@ def is_gaia_full(label, debug=False):
 
 
 class Gaia:
+    """A single Gaia standard star and its calibrated XP spectrum.
+
+    Resolves ``label`` to a Gaia DR3 source id, copies the matching source-table
+    columns onto the instance as attributes, and lazily exposes the calibrated
+    (optionally flux-corrected) spectrum.
+    """
 
     def __init__(
         self,
         label,
     ):
+        """Resolve the star and attach its source-catalog metadata.
+
+        Args:
+            label (str | int): Star name or Gaia source id.
+        """
         test_gaia_name = get_gaia_name_from_star_name(label)
         if test_gaia_name is not None:
             label = test_gaia_name
@@ -290,6 +411,18 @@ class Gaia:
         flux_correction=None,
         correction_threshold=0.8,
     ):
+        """Return the star's calibrated spectrum in CALSPEC dictionary format.
+
+        Uses the bundled XP coefficients if the star is in the local table,
+        otherwise downloads it from the Gaia archive.
+
+        Args:
+            flux_correction (str, optional): Correction variant (None disables).
+            correction_threshold (float, optional): Minimum correlation to apply.
+
+        Returns:
+            dict: ``{"WAVELENGTH", "FLUX", "STATERROR", "SYSERROR"}`` with units.
+        """
         gaia_spectra = get_gaia_spectra()
 
         mask = np.array(gaia_spectra["source_id"]) == self.label
@@ -309,6 +442,12 @@ class Gaia:
         )
 
     def plot_spectrum(self, xscale="log", yscale="log"):
+        """Plot the star's calibrated flux vs wavelength with error bars.
+
+        Args:
+            xscale (str, optional): Matplotlib x-axis scale.
+            yscale (str, optional): Matplotlib y-axis scale.
+        """
         t = self.get_spectrum_numpy()
         _ = plt.figure()
         plt.errorbar(t["WAVELENGTH"].value, t["FLUX"].value, yerr=t["STATERROR"].value)

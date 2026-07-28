@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""Script: build the Gaia standard-star catalogs around the LSST DDF fields.
+
+Logs in to the Gaia archive and queries bright A/G standard stars within a box
+around each Deep Drilling Field centre, downloading their XP spectra and writing
+the source / spectra parquet tables. Edit the magnitude / type / box settings at
+the top, then run.
+"""
 
 from gaiaspec import standard
 

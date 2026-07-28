@@ -1,3 +1,12 @@
+"""Build standard-star catalogs from the Gaia archive.
+
+Query the Gaia DR3 archive (via ``astroquery``) for candidate standard stars —
+around given sky positions or from an explicit source-id list — download their
+XP spectra, cross-match spectral types with Simbad, apply Gaia quality-flag
+selections and write the resulting source / spectra tables to parquet. These are
+the offline tables later consumed by :mod:`gaiaspec.getGaia`.
+"""
+
 import os
 
 import numpy as np
@@ -7,6 +16,7 @@ from astroquery.gaia import Gaia
 
 
 def login():
+    """Log in to the Gaia TAP+ archive (interactive credentials)."""
     Gaia.login()
 
 
@@ -44,6 +54,20 @@ def get_type_gaia(
     Gaia_object,
     user="cravoux",
 ):
+    """Fetch Gaia astrophysical-parameter temperatures for a list of sources.
+
+    Uploads the source ids as a user table, joins against
+    ``gaiadr3.astrophysical_parameters`` and returns the effective-temperature
+    and spectral-type columns.
+
+    Args:
+        sourceidlist (iterable[int]): Gaia DR3 source ids.
+        Gaia_object: A logged-in ``astroquery`` Gaia client.
+        user (str, optional): Gaia archive user name (for the uploaded table).
+
+    Returns:
+        pandas.DataFrame: The selected temperature / spectral-type columns.
+    """
     table_id = Table([list(sourceidlist)], names=["gaia_id"], meta={"meta": "table"})
     Gaia_object.upload_table(upload_resource=table_id, table_name="tableid")
 
@@ -108,6 +132,15 @@ def get_ddf():
 
 
 def chunks_data_split(lst, n):
+    """Yield successive length-``n`` chunks of a sequence.
+
+    Args:
+        lst (Sequence): Sequence to split.
+        n (int): Maximum chunk size.
+
+    Yields:
+        Sequence: Successive slices of ``lst`` of length up to ``n``.
+    """
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
 
@@ -117,6 +150,20 @@ def create_standard_catalog(
     source_id_list=None,
     dl_threshold=5000,
 ):
+    """Query Gaia sources and download their XP spectra in chunks.
+
+    Args:
+        query (str, optional): ADQL query selecting the sources. Combined with
+            ``source_id_list`` it is run per source id.
+        source_id_list (iterable[int], optional): Explicit source ids.
+        dl_threshold (int, optional): Maximum number of ids per download chunk.
+
+    Returns:
+        tuple: ``(gaia_source_table, gaia_spectra_table)`` astropy tables.
+
+    Raises:
+        ValueError: If neither ``query`` nor ``source_id_list`` is given.
+    """
     if (query is None) & (source_id_list is None):
         raise ValueError("Please give either a query or a source_id_list")
     if (query is not None) & (source_id_list is not None):
@@ -174,6 +221,26 @@ def create_standard_catalog_around_fields(
     name,
     star_type_selection=None,
 ):
+    """Build a standard catalog from Gaia sources around several sky fields.
+
+    For each field centre, queries non-variable, well-behaved Gaia sources with
+    XP spectra inside a RA/Dec box brighter than ``mag_max``, optionally filters
+    by Simbad spectral type, downloads the spectra and writes the source /
+    spectra parquet tables.
+
+    Args:
+        ra_centers (Sequence[float]): Field-centre right ascensions (deg).
+        dec_centers (Sequence[float]): Field-centre declinations (deg).
+        delta_ra (float): Half-width of the RA box (deg).
+        delta_dec (float): Half-width of the Dec box (deg).
+        mag_max (float): Faint G-magnitude limit.
+        name (str): Output base name (``{name}_source.parquet`` etc.).
+        star_type_selection (Sequence[str], optional): Spectral-type first
+            letters to keep (e.g. ``["A", "F"]``).
+
+    Returns:
+        tuple: ``(gaia_source_table, gaia_spectra_table, type_stars)``.
+    """
     results_fields = []
     for i in range(len(ra_centers)):
         ra_center = ra_centers[i]
@@ -362,6 +429,13 @@ def catalog_selection(
 
 
 def write_tables(path, gaia_source_table, gaia_spectra_table):
+    """Write the Gaia source and spectra tables to parquet in a directory.
+
+    Args:
+        path (str): Output directory.
+        gaia_source_table: Astropy table of Gaia sources.
+        gaia_spectra_table: Astropy table of Gaia XP spectra.
+    """
     gaia_source_table.to_pandas().to_parquet(
         os.path.join(path, "gaia_source_file.parquet")
     )
