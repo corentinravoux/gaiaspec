@@ -1,3 +1,5 @@
+"""Small internal helpers for gaiaspec (package-directory resolution)."""
+
 import os
 
 

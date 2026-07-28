@@ -1,3 +1,11 @@
+"""Empirical flux correction of Gaia XP spectra against CALSPEC references.
+
+Gaia XP spectra carry a smooth flux-calibration residual. This module correlates
+a target spectrum against a bundled table of Gaia spectra with known CALSPEC
+counterparts, picks the best-matching reference and returns the multiplicative
+wavelength-dependent correction that maps the Gaia flux onto the CALSPEC flux.
+"""
+
 import os
 
 import numpy as np
@@ -7,6 +15,12 @@ from gaiaspec import utils
 
 
 def load_gaia_corrections():
+    """Load the bundled Gaia flux-correction table.
+
+    Returns:
+        pandas.DataFrame: The ``data/gaia_flux_correction.parquet`` table, with
+        per-row ``wavelength``, ``gaia_spectrum`` and corrected-flux columns.
+    """
     dirname = utils._getPackageDir()
     filename = os.path.join(dirname, "./data/gaia_flux_correction.parquet")
     df_gaia_correction = pd.read_parquet(filename)
@@ -18,7 +32,20 @@ def compute_gaia_correlation(
     wavelength,
     flux,
 ):
+    """Correlate one spectrum against every reference in the correction table.
 
+    Interpolates the input flux onto each reference wavelength grid (ignoring
+    NaNs) and computes the Pearson correlation coefficient.
+
+    Args:
+        df_gaia_correction (pandas.DataFrame): Correction table (see
+            :func:`load_gaia_corrections`).
+        wavelength (numpy.ndarray): Input wavelength grid.
+        flux (numpy.ndarray): Input flux.
+
+    Returns:
+        numpy.ndarray: Correlation coefficient with each reference row.
+    """
     correlation_with_gaia = []
 
     for i in range(len(df_gaia_correction)):
@@ -48,6 +75,24 @@ def find_best_gaia_correction(
     choose_corr="m3",
     verbose=True,
 ):
+    """Return the correction of the best-correlated reference above a threshold.
+
+    Sorts references by correlation and, for the best one above
+    ``corr_threshold``, returns the ``corrected_flux / gaia_spectrum`` ratio
+    interpolated onto ``wavelength`` (unity where no acceptable match exists).
+
+    Args:
+        df_gaia_correction (pandas.DataFrame): Correction table with a
+            ``correlation_with_gaia`` column.
+        wavelength (numpy.ndarray): Target wavelength grid.
+        corr_threshold (float, optional): Minimum acceptable correlation.
+        choose_corr (str, optional): Correction variant column suffix
+            (e.g. ``"m3"`` -> ``gaia_corrected_flux_m3``).
+        verbose (bool, optional): Print when no correction is found.
+
+    Returns:
+        numpy.ndarray: Multiplicative correction on ``wavelength`` (ones if none).
+    """
     df_gaia_correction_sorted = df_gaia_correction.sort_values(
         "correlation_with_gaia", ascending=False
     )
@@ -78,6 +123,20 @@ def return_gaia_spectra_correction(
     corr_threshold=0.8,
     choose_corr="m3",
 ):
+    """Compute the empirical flux correction for a single spectrum.
+
+    Convenience wrapper chaining :func:`load_gaia_corrections`,
+    :func:`compute_gaia_correlation` and :func:`find_best_gaia_correction`.
+
+    Args:
+        wavelength (numpy.ndarray): Input wavelength grid.
+        flux (numpy.ndarray): Input flux.
+        corr_threshold (float, optional): Minimum acceptable correlation.
+        choose_corr (str, optional): Correction variant suffix.
+
+    Returns:
+        numpy.ndarray: Multiplicative correction on ``wavelength``.
+    """
     df_gaia_correction = load_gaia_corrections()
 
     df_gaia_correction["correlation_with_gaia"] = compute_gaia_correlation(
@@ -96,6 +155,19 @@ def return_gaia_spectra_correction(
 
 
 def multi_pearsonr(x, y):
+    """Pearson correlation of many row-vectors ``x`` against one vector ``y``.
+
+    Vectorised equivalent of calling :func:`scipy.stats.pearsonr` for each row
+    of ``x`` against ``y``.
+
+    Args:
+        x (numpy.ndarray): Array of shape ``(n, m)`` (``n`` spectra of length m).
+        y (numpy.ndarray): Reference vector of length ``m``.
+
+    Returns:
+        numpy.ndarray: Length-``n`` correlation coefficients, clipped to
+        ``[-1, 1]``.
+    """
     xmean = x.mean(axis=1)
     ymean = y.mean()
     xm = x - xmean[:, None]
@@ -110,7 +182,19 @@ def compute_gaia_correlation_multiple_spectra(
     wavelength,
     fluxes,
 ):
+    """Correlate many spectra against every reference in the correction table.
 
+    Vectorised counterpart of :func:`compute_gaia_correlation` for a batch of
+    input spectra sharing one ``wavelength`` grid.
+
+    Args:
+        df_gaia_correction (pandas.DataFrame): Correction table.
+        wavelength (numpy.ndarray): Shared input wavelength grid.
+        fluxes (iterable[numpy.ndarray]): Input fluxes.
+
+    Returns:
+        numpy.ndarray: Correlation array of shape ``(n_fluxes, n_references)``.
+    """
     df_gaia_correction_interpolated = np.zeros(
         (df_gaia_correction.shape[0], wavelength.size)
     )
@@ -141,6 +225,17 @@ def return_gaia_spectra_correction_multiple(
     corr_threshold=0.8,
     choose_corr="m3",
 ):
+    """Compute the empirical flux correction for several spectra at once.
+
+    Args:
+        wavelength (numpy.ndarray): Shared input wavelength grid.
+        fluxes (iterable[numpy.ndarray]): Input fluxes.
+        corr_threshold (float, optional): Minimum acceptable correlation.
+        choose_corr (str, optional): Correction variant suffix.
+
+    Returns:
+        numpy.ndarray: One multiplicative correction per input flux.
+    """
     df_gaia_correction = load_gaia_corrections()
 
     correlation_with_gaia = compute_gaia_correlation_multiple_spectra(
