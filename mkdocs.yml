@@ -1,0 +1,65 @@
+site_name: gaiaspec
+site_description: Gaia XP spectra as standard stars for AuxTel atmospheric measurements
+site_url: https://corentinravoux.github.io/gaiaspec/
+repo_url: https://github.com/corentinravoux/gaiaspec
+repo_name: corentinravoux/gaiaspec
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - toc:
+      permalink: true
+  - tables
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: true
+            show_signature_annotations: true
+            separate_signature: true
+            filters: ["!^_"]
+            members_order: source
+            heading_level: 2
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - How it works: pipeline.md
+  - API reference:
+      - Overview: api/index.md
+      - getGaia: api/getGaia.md
+      - standard: api/standard.md
+      - spectrum_correction: api/spectrum_correction.md
+      - utils: api/utils.md
