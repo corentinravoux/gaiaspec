@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+title: gaiaspec
+abstract: >-
+  Turn Gaia XP spectra into CALSPEC-format standard-star spectra for
+  atmospheric calibration of AuxTel and similar instruments, with an empirical
+  flux correction against Gaia/CALSPEC reference pairs.
+type: software
+authors:
+  - given-names: Corentin
+    family-names: Ravoux
+    email: corentin.ravoux.research@gmail.com
+version: "1.0.2"
+date-released: 2026-07-29
+license: MIT
+repository-code: "https://github.com/corentinravoux/gaiaspec"
+url: "https://corentinravoux.github.io/gaiaspec/"
+doi: 10.5281/zenodo.21646138
+keywords:
+  - astronomy
+  - Gaia
+  - spectrophotometry
+  - standard stars
+  - calibration
