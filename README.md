@@ -1,6 +1,7 @@
 # gaiaspec
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21646138.svg)](https://doi.org/10.5281/zenodo.21646138)
+[![tests](https://github.com/corentinravoux/gaiaspec/actions/workflows/tests.yml/badge.svg)](https://github.com/corentinravoux/gaiaspec/actions/workflows/tests.yml)
 
 Turn [Gaia](https://www.cosmos.esa.int/web/gaia) XP spectra into **standard-star
 spectra** for atmospheric calibration of AuxTel (and other instruments), in the
